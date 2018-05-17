@@ -41,6 +41,9 @@
 #include "lwip/pbuf.h"
 #include "lwip/tcp.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** Set this to 1 to support CGI */
 #ifndef LWIP_HTTPD_CGI
@@ -259,5 +262,9 @@ err_t websocket_write(struct tcp_pcb *pcb, const uint8_t *data, uint16_t len, ui
 void websocket_register_callbacks(tWsOpenHandler ws_open_cb, tWsHandler ws_cb);
 
 void httpd_init(void);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* __HTTPD_H__ */
