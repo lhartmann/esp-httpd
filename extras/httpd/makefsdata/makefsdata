@@ -1,6 +1,8 @@
 #!/usr/bin/perl
 
 $incHttpHeader = 1;
+$useGzip = 1;
+$verbose = 1;
 
 open(OUTPUT, "> fsdata.c");
 print(OUTPUT "#include \"httpd/fsdata.h\"\n\n");
@@ -14,45 +16,62 @@ while($file = <FILES>) {
     if($file =~ /(CVS|~)/) {
         next;
     }
+    $compress = $useGzip;
 
     chop($file);
 
     if($incHttpHeader == 1) {
-        open(HEADER, "> /tmp/header") || die $!;
+        open(HEADER, "> /tmp/file") || die $!;
         if($file =~ /404/) {
             print(HEADER "HTTP/1.0 404 File not found\r\n");
         } else {
             print(HEADER "HTTP/1.0 200 OK\r\n");
         }
-        print(HEADER "lwIP/1.4.1 (http://savannah.nongnu.org/projects/lwip)\r\n");
-        if($file =~ /\.html$/ || $file =~ /\.htm$/ || $file =~ /\.shtml$/ || $file =~ /\.shtm$/ || $file =~ /\.ssi$/) {
+#        print(HEADER "lwIP/1.4.1 (http://savannah.nongnu.org/projects/lwip)\r\n");
+        if($file =~ /\.html$/ || $file =~ /\.htm$/) {
             print(HEADER "Content-type: text/html\r\n");
+        } elsif ($file =~ /\.shtml$/ || $file =~ /\.shtm$/ || $file =~ /\.ssi$/) {
+            print(HEADER "Content-type: text/html\r\n");
+            $compress = 0;
         } elsif($file =~ /\.js$/) {
-            print(HEADER "Content-type: application/x-javascript\r\n\r\n");
+            print(HEADER "Content-type: application/x-javascript\r\n");
         } elsif($file =~ /\.css$/) {
-            print(HEADER "Content-type: text/css\r\n\r\n");
+            print(HEADER "Content-type: text/css\r\n");
         } elsif($file =~ /\.ico$/) {
-            print(HEADER "Content-type: image/x-icon\r\n\r\n");
+            print(HEADER "Content-type: image/x-icon\r\n");
+            $compress = 0;
         } elsif($file =~ /\.gif$/) {
             print(HEADER "Content-type: image/gif\r\n");
+            $compress = 0;
         } elsif($file =~ /\.png$/) {
             print(HEADER "Content-type: image/png\r\n");
+            $compress = 0;
         } elsif($file =~ /\.jpg$/) {
             print(HEADER "Content-type: image/jpeg\r\n");
+            $compress = 0;
         } elsif($file =~ /\.bmp$/) {
             print(HEADER "Content-type: image/bmp\r\n\r\n");
         } elsif($file =~ /\.class$/) {
             print(HEADER "Content-type: application/octet-stream\r\n");
         } elsif($file =~ /\.ram$/) {
             print(HEADER "Content-type: audio/x-pn-realaudio\r\n");
+            $compress = 0;
         } else {
             print(HEADER "Content-type: text/plain\r\n");
+        }
+        if ($compress == 1) {
+            print(HEADER "Content-encoding: gzip\r\n");
         }
         print(HEADER "\r\n");
         close(HEADER);
 
         unless($file =~ /\.plain$/ || $file =~ /cgi/) {
-            system("cat /tmp/header $file > /tmp/file");
+			if ($compress ==1) {
+				system("cat $file | gzip >> /tmp/file");
+			} else {
+				system("cat $file >> /tmp/file");
+			}
+			system("echo \"$file packed from `wc -c < $file` to `wc -c < /tmp/file` bytes.\"");
         } else {
             system("cp $file /tmp/file");
         }
@@ -62,13 +81,11 @@ while($file = <FILES>) {
 
     open(FILE, "/tmp/file");
     unlink("/tmp/file");
-    unlink("/tmp/header");
 
     $file =~ s/\.//;
     $fvar = $file;
-    $fvar =~ s-/-_-g;
-    $fvar =~ s-\.-_-g;
-
+    $fvar =~ s/[^a-z0-9]/_/gi;
+    
     print(OUTPUT "static const unsigned char data".$fvar."[] = {\n");
     print(OUTPUT "\t/* $file */\n\t");
     for($j = 0; $j < length($file); $j++) {
